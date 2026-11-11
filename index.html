@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Känny Snake</title>
+<!-- The game reads its settings from this file. Students edit settings.js, not this one. -->
+<script src="settings.js"></script>
+<style>
+  :root {
+    --case: #f2c14e;
+    --case-dark: color-mix(in srgb, var(--case) 70%, black);
+    --case-deep: color-mix(in srgb, var(--case) 45%, black);
+    --case-light: color-mix(in srgb, var(--case) 65%, white);
+    --lcd-bg: #b8c99a;
+    --page: #2a2140;
+    --page-dot: #352a52;
+    --key: #f6f1e7;
+    --key-shade: #d9d0bf;
+    --key-ink: #2a2140;
+    --text: #e8e2f4;
+    --muted: #b3a9cc;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    position: relative;
+    z-index: 0; /* lets the antenna and charm sit behind the phone but stay clickable */
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 24px 12px 220px;
+    background-color: var(--page);
+    background-image: radial-gradient(var(--page-dot) 1.5px, transparent 1.5px);
+    background-size: 18px 18px;
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* ---------- the phone ---------- */
+  .phone {
+    position: relative;
+    width: min(290px, 88vw);
+    padding: 20px 20px 30px;
+    border-radius: 46px 46px 60px 60px;
+    background: linear-gradient(155deg, var(--case-light) 0%, var(--case) 35%, var(--case-dark) 100%);
+    box-shadow:
+      inset 0 4px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -8px 0 rgba(0, 0, 0, 0.18),
+      0 16px 0 -4px var(--case-deep),
+      0 34px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .antenna {
+    position: absolute;
+    top: -38px;
+    right: 42px;
+    width: 24px;
+    height: 54px;
+    border-radius: 12px 12px 4px 4px;
+    background: linear-gradient(90deg, var(--case-dark), var(--case-deep));
+    z-index: -1;
+  }
+
+  .speaker {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 2px 0 10px;
+  }
+  .speaker span {
+    width: 22px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--case-deep);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+
+  .brand {
+    margin: 0 0 12px;
+    text-align: center;
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--brand, var(--case-deep));
+    text-shadow: var(--brand-shadow, 0 1px 0 var(--case-light));
+    transform: skewX(-8deg);
+  }
+
+  .bezel {
+    padding: 14px 14px 18px;
+    border-radius: 20px 20px 30px 30px;
+    background: #1f1b29;
+    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.7), 0 1px 0 var(--case-light);
+  }
+
+  .lcd {
+    position: relative;
+    aspect-ratio: 100 / 66;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--lcd-bg);
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+  .lcd canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+  }
+  /* faint pixel grid and glare, so it looks like a real LCD */
+  .lcd::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(0, 0, 0, 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.07) 1px, transparent 1px),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, transparent 45%);
+    background-size: calc(100% / 100) calc(100% / 66), calc(100% / 100) calc(100% / 66), 100% 100%;
+  }
+
+  .lcd.off { background: color-mix(in srgb, var(--lcd-bg) 30%, #1b1d18); }
+  .lcd.off canvas { visibility: hidden; }
+
+  /* ---------- answer / menu / hang up row ---------- */
+  .callrow {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 0 4px;
+  }
+  .callkey {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    border: 0;
+    background: var(--key);
+    color: var(--key-ink);
+    cursor: pointer;
+    box-shadow: inset 0 -4px 0 var(--key-shade), 0 3px 0 var(--case-deep);
+    transition: transform 60ms, box-shadow 60ms;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .callkey.answer { border-radius: 20px 10px 10px 20px; }
+  .callkey.hangup { border-radius: 10px 20px 20px 10px; }
+  .callkey.menu { height: 44px; border-radius: 22px; }
+  .callkey svg { width: 26px; height: 26px; }
+  .callkey .line { width: 26px; height: 4px; border-radius: 2px; background: var(--key-ink); opacity: 0.75; }
+  .callkey:active, .callkey.pressed {
+    transform: translateY(3px);
+    box-shadow: inset 0 -1px 0 var(--key-shade), 0 0 0 var(--case-deep);
+  }
+  .callkey:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+  /* ---------- keypad ---------- */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 12px;
+    margin-top: 18px;
+    padding: 0 4px;
+  }
+  .key {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    height: 44px;
+    border: 0;
+    border-radius: 16px 16px 20px 20px;
+    background: var(--key);
+    color: var(--key-ink);
+    font: inherit;
+    font-weight: 800;
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: inset 0 -4px 0 var(--key-shade), 0 3px 0 var(--case-deep);
+    transition: transform 60ms, box-shadow 60ms;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .key small {
+    min-height: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    opacity: 0.6;
+  }
+  .key:active, .key.pressed {
+    transform: translateY(3px);
+    box-shadow: inset 0 -1px 0 var(--key-shade), 0 0 0 var(--case-deep);
+  }
+  .key:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+  /* ---------- phone charm (very 2002) ---------- */
+  .charm {
+    position: absolute;
+    top: calc(100% - 2px);
+    right: 40px;
+    width: 84px;
+    height: 190px;
+    z-index: -1;
+    transform-origin: 42px 0;
+    animation: sway 3.2s ease-in-out infinite alternate;
+    cursor: pointer;
+  }
+  .charm svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .charm.lit svg,
+  .charm.party svg {
+    filter: drop-shadow(0 0 4px #ff6bd6) drop-shadow(0 0 10px #ff6bd6) brightness(1.35);
+  }
+  .charm.party svg { animation: flash 0.3s steps(1) infinite; }
+  @keyframes sway { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+  @keyframes flash { 50% { filter: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .charm, .charm.party svg { animation: none; }
+  }
+
+  /* ---------- notes above the phone ---------- */
+  .notes {
+    max-width: 34em;
+    margin-bottom: 64px;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .notes p { margin: 0 0 6px; }
+  .notes .controls { color: var(--muted); font-size: 14px; }
+  .notes code {
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.95em;
+  }
+  .notes .error {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #ffd6d6;
+    color: #5a0f0f;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<section class="notes">
+  <p>Change the game in <code>settings.js</code>. Save it, then refresh this page.</p>
+  <p class="controls">Steer with the arrow keys, WASD or 2 4 6 8. Start and pause with 5 or space. # turns the sound on and off. The red button starts over, the middle one turns the screen off.</p>
+  <p class="error" id="settingsError" hidden>settings.js has a mistake in it, so the game is using its default settings. Check your last change, or discard it in GitHub Desktop.</p>
+</section>
+
+<main class="phone" aria-label="Känny phone running Snake">
+  <div class="antenna" aria-hidden="true"></div>
+  <div class="charm" id="charm" aria-hidden="true">
+    <svg viewBox="0 0 60 136">
+      <defs>
+        <radialGradient id="beadPink" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#ffd1f0"/><stop offset="1" stop-color="#ff3fb4" stop-opacity="0.85"/></radialGradient>
+        <radialGradient id="beadLime" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#f2ffc4"/><stop offset="1" stop-color="#8fe000" stop-opacity="0.85"/></radialGradient>
+        <radialGradient id="beadAqua" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#d6fbff"/><stop offset="1" stop-color="#16c4e0" stop-opacity="0.85"/></radialGradient>
+        <linearGradient id="starFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb3ec"/><stop offset="0.5" stop-color="#ff5fcf"/><stop offset="1" stop-color="#a24dff"/></linearGradient>
+      </defs>
+      <!-- cord loop (the top is hidden behind the phone) and cord -->
+      <ellipse cx="30" cy="4" rx="5" ry="9" fill="none" stroke="#efe4ff" stroke-width="1.4"/>
+      <line x1="30" y1="12" x2="30" y2="78" stroke="#efe4ff" stroke-width="1.4"/>
+      <!-- beads -->
+      <circle cx="30" cy="24" r="5.5" fill="url(#beadPink)"/>
+      <circle cx="30" cy="33" r="2.4" fill="#ffffff" opacity="0.9"/>
+      <circle cx="30" cy="42" r="5.5" fill="url(#beadLime)"/>
+      <circle cx="30" cy="51" r="2.4" fill="#ffffff" opacity="0.9"/>
+      <circle cx="30" cy="60" r="5.5" fill="url(#beadAqua)"/>
+      <circle cx="30" cy="69" r="2.4" fill="#ffffff" opacity="0.9"/>
+      <!-- metal ring -->
+      <circle cx="30" cy="80" r="4" fill="none" stroke="#c9c9d4" stroke-width="1.8"/>
+      <!-- light-up star -->
+      <polygon points="30.0,85.0 35.3,98.7 50.0,99.5 38.6,108.8 42.3,123.0 30.0,115.0 17.7,123.0 21.4,108.8 10.0,99.5 24.7,98.7"
+               fill="url(#starFill)" fill-opacity="0.9" stroke="#ffe3f7" stroke-width="1.4" stroke-linejoin="round"/>
+      <!-- glitter -->
+      <circle cx="26" cy="100" r="1.1" fill="#fff"/>
+      <circle cx="33" cy="106" r="0.9" fill="#fff"/>
+      <circle cx="24" cy="111" r="0.8" fill="#fff"/>
+      <circle cx="37" cy="101" r="0.7" fill="#fff"/>
+      <circle cx="30" cy="95" r="0.8" fill="#fff"/>
+      <circle cx="35" cy="114" r="0.7" fill="#fff"/>
+      <path d="M22 97 L26 93" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity="0.8"/>
+    </svg>
+  </div>
+  <div class="speaker" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+  <p class="brand" aria-hidden="true">KÄNNY</p>
+
+  <div class="bezel">
+    <div class="lcd">
+      <canvas id="screen" width="100" height="66" role="img" aria-label="Snake game screen"></canvas>
+    </div>
+  </div>
+
+  <div class="callrow" id="callrow">
+    <a class="callkey answer" id="answer" href="https://theuselessweb.com/archive/hampsterdance-com/" target="_blank" rel="noopener" aria-label="Answer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1f9d3a" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>
+    </a>
+    <button class="callkey menu" data-act="menu" aria-label="Menu, screen on or off"><span class="line"></span></button>
+    <button class="callkey hangup" data-act="hangup" aria-label="Hang up, back to start screen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#d6302f" transform="rotate(135 12 12)" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="keypad" id="keypad">
+    <button class="key" data-act="beep">1<small>.,?!</small></button>
+    <button class="key" data-act="up" aria-label="2, up">2<small>ABC</small></button>
+    <button class="key" data-act="beep">3<small>DEF</small></button>
+    <button class="key" data-act="left" aria-label="4, left">4<small>GHI</small></button>
+    <button class="key" data-act="ok" aria-label="5, start or pause">5<small>JKL</small></button>
+    <button class="key" data-act="right" aria-label="6, right">6<small>MNO</small></button>
+    <button class="key" data-act="beep">7<small>PQRS</small></button>
+    <button class="key" data-act="down" aria-label="8, down">8<small>TUV</small></button>
+    <button class="key" data-act="beep">9<small>WXYZ</small></button>
+    <button class="key" data-act="beep">*<small>+</small></button>
+    <button class="key" data-act="beep">0<small>⎵</small></button>
+    <button class="key" data-act="mute" aria-label="hash, sound on or off">#<small></small></button>
+  </div>
+</main>
+
+
+
+<script>
+(function () {
+  "use strict";
+
+  // ===================================================
+  //  1. Read settings.js safely. Bad values fall back
+  //     to defaults instead of breaking the game.
+  // ===================================================
+  var settingsLoaded = (typeof window.SETTINGS_OK !== "undefined" && window.SETTINGS_OK === true);
+
+  function setting(name, fallback, isValid) {
+    var value = window[name];
+    if (value === undefined) return fallback;
+    try { return isValid(value) ? value : fallback; } catch (e) { return fallback; }
+  }
+  function isNum(v) { return v !== "" && v !== null && typeof v !== "boolean" && !isNaN(Number(v)); }
+  function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(Number(n)))); }
+
+  var THEMES = {
+    green: { bg: "#b8c99a", ink: "#1f2a14" },
+    blue:  { bg: "#9fc3d6", ink: "#0f2330" },
+    amber: { bg: "#e9b44c", ink: "#3a2207" },
+    grey:  { bg: "#c4c7bd", ink: "#202220" },
+    pink:  { bg: "#f2b8cb", ink: "#3d1022" }
+  };
+
+  var S = {
+    title:     String(setting("GAME_TITLE", "SNAKE", function (v) { return typeof v === "string" && v.trim() !== ""; })).toUpperCase().slice(0, 12),
+    speed:     clamp(setting("SNAKE_SPEED", 5, isNum), 1, 10),
+    length:    clamp(setting("START_LENGTH", 4, isNum), 2, 20),
+    points:    clamp(setting("FOOD_POINTS", 1, isNum), 1, 999),
+    walls:     setting("WALLS_KILL", true, function (v) { return typeof v === "boolean"; }),
+    theme:     THEMES[String(setting("SCREEN_THEME", "green", function (v) { return typeof v === "string" && THEMES[v.toLowerCase()]; })).toLowerCase()],
+    colour:    setting("PHONE_COLOUR", "#f2c14e", function (v) { return typeof v === "string" && window.CSS && CSS.supports("color", v); }),
+    sound:     setting("SOUND_ON", true, function (v) { return typeof v === "boolean"; }),
+    overText:  String(setting("GAME_OVER_TEXT", "GAME OVER", function (v) { return typeof v === "string" && v.trim() !== ""; })).toUpperCase().slice(0, 16)
+  };
+
+  document.documentElement.style.setProperty("--case", S.colour);
+  document.documentElement.style.setProperty("--lcd-bg", S.theme.bg);
+  if (!settingsLoaded) document.getElementById("settingsError").hidden = false;
+
+  // dark phone colours get a light logo so it stays readable
+  try {
+    var probe = document.createElement("canvas").getContext("2d");
+    probe.fillStyle = S.colour; probe.fillRect(0, 0, 1, 1);
+    var px = probe.getImageData(0, 0, 1, 1).data;
+    if ((0.299 * px[0] + 0.587 * px[1] + 0.114 * px[2]) / 255 < 0.45) {
+      document.documentElement.style.setProperty("--brand", "color-mix(in srgb, var(--case) 30%, white)");
+      document.documentElement.style.setProperty("--brand-shadow", "0 -1px 0 var(--case-deep)");
+    }
+  } catch (e) {}
+
+  // ===================================================
+  //  2. Screen and a tiny pixel font (3 x 5 pixels)
+  // ===================================================
+  var canvas = document.getElementById("screen");
+  var ctx = canvas.getContext("2d");
+  var W = 100, H = 66;
+
+  var GLYPHS = {
+    "A":"010101111101101","B":"110101110101110","C":"011100100100011","D":"110101101101110",
+    "E":"111100110100111","F":"111100110100100","G":"011100101101011","H":"101101111101101",
+    "I":"111010010010111","J":"001001001101010","K":"101101110101101","L":"100100100100111",
+    "M":"101111111101101","N":"110101101101101","O":"010101101101010","P":"110101110100100",
+    "Q":"010101101110011","R":"110101110101101","S":"011100010001110","T":"111010010010010",
+    "U":"101101101101111","V":"101101101101010","W":"101101111111101","X":"101101010101101",
+    "Y":"101101010010010","Z":"111001010100111",
+    "Ä":"101010101111101","Ö":"101010101101010","Å":"010010101111101",
+    "0":"111101101101111","1":"010110010010111","2":"110001010100111","3":"110001010001110",
+    "4":"101101111001001","5":"111100110001110","6":"011100111101111","7":"111001010010010",
+    "8":"111101111101111","9":"111101111001110",
+    " ":"000000000000000","!":"010010010000010","?":"110001010000010",".":"000000000000010",
+    ":":"000010000010000","-":"000000111000000","'":"010010000000000","/":"001001010100100",
+    "#":"101111101111101","+":"000010111010000",",":"000000000010100"
+  };
+
+  function clean(s) {
+    return String(s).toUpperCase().split("").map(function (ch) { return GLYPHS[ch] ? ch : "?"; }).join("");
+  }
+  function textWidth(s, scale) { return s.length * 4 * scale - scale; }
+  function drawText(s, x, y, scale) {
+    s = clean(s);
+    for (var i = 0; i < s.length; i++) {
+      var g = GLYPHS[s[i]];
+      for (var p = 0; p < 15; p++) {
+        if (g[p] === "1") ctx.fillRect(x + (p % 3) * scale, y + Math.floor(p / 3) * scale, scale, scale);
+      }
+      x += 4 * scale;
+    }
+  }
+  function centerText(s, y, scale) {
+    s = clean(s);
+    drawText(s, Math.round((W - textWidth(s, scale)) / 2), y, scale);
+  }
+  function fitScale(s) { return textWidth(clean(s), 2) <= 96 ? 2 : 1; }
+  function pad(n) { return n > 9999 ? String(n) : ("0000" + n).slice(-4); }
+
+  // ===================================================
+  //  3. Sound: short square-wave beeps
+  // ===================================================
+  var soundOn = S.sound;
+  var audio = null;
+  function beep(freq, dur, delay) {
+    if (!soundOn) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      var osc = audio.createOscillator(), gain = audio.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.value = 0.04;
+      osc.connect(gain); gain.connect(audio.destination);
+      var t0 = audio.currentTime + (delay || 0);
+      osc.start(t0); osc.stop(t0 + dur);
+    } catch (e) { /* no sound available, that's fine */ }
+  }
+
+  // the phone charm lights up, like the flashing ones that blinked when your phone rang
+  var charm = document.getElementById("charm");
+  var charmTimer = null;
+  function flashCharm(ms) {
+    charm.classList.remove("party");
+    charm.classList.add("lit");
+    clearTimeout(charmTimer);
+    charmTimer = setTimeout(function () { charm.classList.remove("lit"); }, ms);
+  }
+  function partyCharm(ms) {
+    charm.classList.remove("lit");
+    charm.classList.add("party");
+    clearTimeout(charmTimer);
+    charmTimer = setTimeout(function () { charm.classList.remove("party"); }, ms);
+  }
+  charm.addEventListener("pointerdown", function () { partyCharm(900); beep(1500, 0.03); beep(1800, 0.03, 0.05); });
+
+  // ===================================================
+  //  4. The game
+  // ===================================================
+  var COLS = 24, ROWS = 13;
+  function cx(c) { return 2 + c * 4; }
+  function cy(r) { return 12 + r * 4; }
+
+  var state = "title";          // title, play, pause, dying, over
+  var snake, dir, queue, food, score, dyingTime, newBest, won;
+  var tickMs = 260 - S.speed * 20;
+  var best = 0;
+  try { best = Number(localStorage.getItem("kanny-snake-best")) || 0; } catch (e) {}
+  var toast = "", toastTime = 0;
+  var screenOn = true;
+  var lcd = document.querySelector(".lcd");
+
+  function startGame() {
+    var len = S.length;
+    var headX = Math.min(COLS - 3, Math.floor(COLS / 2) + Math.floor(len / 2));
+    var row = Math.floor(ROWS / 2);
+    snake = [];
+    for (var i = 0; i < len; i++) snake.push({ x: headX - i, y: row });
+    dir = { x: 1, y: 0 };
+    queue = [];
+    score = 0;
+    newBest = false;
+    won = false;
+    placeFood();
+    state = "play";
+    acc = 0;
+    beep(660, 0.06); beep(990, 0.08, 0.07);
+  }
+
+  function placeFood() {
+    var free = [];
+    for (var x = 0; x < COLS; x++) {
+      for (var y = 0; y < ROWS; y++) {
+        if (!snake.some(function (s) { return s.x === x && s.y === y; })) free.push({ x: x, y: y });
+      }
+    }
+    if (free.length === 0) { won = true; die(); return; }
+    food = free[Math.floor(Math.random() * free.length)];
+  }
+
+  function turn(d) {
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (d.x === -last.x && d.y === -last.y) return;   // no turning back into yourself
+    if (d.x === last.x && d.y === last.y) return;
+    if (queue.length < 3) queue.push(d);
+  }
+
+  function step() {
+    if (queue.length) dir = queue.shift();
+    var head = snake[0];
+    var nx = head.x + dir.x, ny = head.y + dir.y;
+
+    if (S.walls) {
+      if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) { die(); return; }
+    } else {
+      nx = (nx + COLS) % COLS;
+      ny = (ny + ROWS) % ROWS;
+    }
+
+    var eating = (nx === food.x && ny === food.y);
+    var body = eating ? snake : snake.slice(0, -1);
+    if (body.some(function (s) { return s.x === nx && s.y === ny; })) { die(); return; }
+
+    snake.unshift({ x: nx, y: ny });
+    if (eating) {
+      score += S.points;
+      beep(1200, 0.04);
+      flashCharm(220);
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  function die() {
+    state = "dying";
+    dyingTime = 0;
+    if (score > best) {
+      best = score;
+      newBest = true;
+      try { localStorage.setItem("kanny-snake-best", String(best)); } catch (e) {}
+    }
+    partyCharm(1300);
+    if (won) { beep(880, 0.1); beep(1100, 0.1, 0.12); beep(1320, 0.25, 0.24); }
+    else { beep(440, 0.1); beep(330, 0.1, 0.12); beep(220, 0.3, 0.24); }
+  }
+
+  function press(action) {
+    if (action === "menu") {
+      screenOn = !screenOn;
+      lcd.classList.toggle("off", !screenOn);
+      if (!screenOn && state === "play") state = "pause";
+      beep(screenOn ? 900 : 400, 0.05);
+      return;
+    }
+    if (action === "hangup") {
+      state = "title";
+      toastTime = 0;
+      screenOn = true;
+      lcd.classList.remove("off");
+      charm.classList.remove("party", "lit");
+      beep(520, 0.06); beep(390, 0.1, 0.07);
+      return;
+    }
+    if (!screenOn) return;   // screen is off, the other keys do nothing
+
+    if (action === "up") { if (state === "play") turn({ x: 0, y: -1 }); }
+    else if (action === "down") { if (state === "play") turn({ x: 0, y: 1 }); }
+    else if (action === "left") { if (state === "play") turn({ x: -1, y: 0 }); }
+    else if (action === "right") { if (state === "play") turn({ x: 1, y: 0 }); }
+    else if (action === "ok") {
+      if (state === "title" || state === "over") startGame();
+      else if (state === "play") { state = "pause"; beep(500, 0.05); }
+      else if (state === "pause") { state = "play"; beep(700, 0.05); }
+    }
+    else if (action === "mute") {
+      soundOn = !soundOn;
+      toast = soundOn ? "SOUND ON" : "SOUND OFF";
+      toastTime = 1200;
+      beep(800, 0.05);
+    }
+    else if (action === "beep") { beep(600, 0.03); }
+  }
+
+  // ===================================================
+  //  5. Drawing
+  // ===================================================
+  function drawCell(c, r) { ctx.fillRect(cx(c), cy(r), 3, 3); }
+
+  function drawSnake() {
+    for (var i = 0; i < snake.length; i++) {
+      var s = snake[i];
+      drawCell(s.x, s.y);
+      // fill the 1-pixel gap between neighbouring segments so it looks joined up
+      var n = snake[i + 1];
+      if (n && Math.abs(n.x - s.x) + Math.abs(n.y - s.y) === 1) {
+        var gx = Math.max(cx(s.x), cx(n.x)), gy = Math.max(cy(s.y), cy(n.y));
+        if (n.x !== s.x) ctx.fillRect(gx - 1, cy(s.y), 1, 3);
+        else ctx.fillRect(cx(s.x), gy - 1, 3, 1);
+      }
+    }
+    // eye: a hole in the middle of the head
+    ctx.clearRect(cx(snake[0].x) + 1, cy(snake[0].y) + 1, 1, 1);
+  }
+
+  function drawFood() {
+    var x = cx(food.x), y = cy(food.y);
+    ctx.fillRect(x + 1, y, 1, 1);
+    ctx.fillRect(x, y + 1, 1, 1);
+    ctx.fillRect(x + 2, y + 1, 1, 1);
+    ctx.fillRect(x + 1, y + 2, 1, 1);
+  }
+
+  function drawBorder() {
+    if (S.walls) {
+      ctx.fillRect(0, 10, W, 1);
+      ctx.fillRect(0, H - 1, W, 1);
+      ctx.fillRect(0, 10, 1, H - 10);
+      ctx.fillRect(W - 1, 10, 1, H - 10);
+    } else {
+      // dotted border = you can go through it
+      for (var x = 0; x < W; x += 2) { ctx.fillRect(x, 10, 1, 1); ctx.fillRect(x, H - 1, 1, 1); }
+      for (var y = 10; y < H; y += 2) { ctx.fillRect(0, y, 1, 1); ctx.fillRect(W - 1, y, 1, 1); }
+    }
+  }
+
+  function drawMiniSnake(y) {
+    for (var x = 30; x <= 66; x += 4) ctx.fillRect(x, y, 3, 3);
+    for (var g = 33; g < 66; g += 4) ctx.fillRect(g, y, 1, 3);
+    ctx.clearRect(67, y + 1, 1, 1);
+    ctx.fillRect(73, y + 1, 1, 1); ctx.fillRect(72, y + 2, 1, 1); ctx.fillRect(74, y + 2, 1, 1); ctx.fillRect(73, y + 3, 1, 1);
+  }
+
+  function box(text) {
+    var w = textWidth(text, 1) + 8, x = Math.round((W - w) / 2), y = 32;
+    ctx.fillStyle = S.theme.bg; ctx.fillRect(x, y, w, 11);
+    ctx.fillStyle = S.theme.ink;
+    ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + 10, w, 1);
+    ctx.fillRect(x, y, 1, 11); ctx.fillRect(x + w - 1, y, 1, 11);
+    centerText(text, y + 3, 1);
+  }
+
+  var clock = 0;
+  function blinkOn() { return Math.floor(clock / 500) % 2 === 0; }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = S.theme.ink;
+
+    if (state === "title") {
+      drawMiniSnake(5);
+      centerText(S.title, 16, fitScale(S.title));
+      if (settingsLoaded) {
+        centerText("BEST " + pad(best), 34, 1);
+      } else {
+        centerText("CHECK", 32, 1);
+        centerText("SETTINGS.JS", 39, 1);
+      }
+      if (blinkOn()) centerText("PRESS 5 TO PLAY", 54, 1);
+    }
+    else if (state === "over") {
+      var title = won ? "YOU WIN!" : S.overText;
+      centerText(title, 10, fitScale(title));
+      centerText("SCORE " + pad(score), 30, 1);
+      centerText(newBest ? "NEW BEST!" : "BEST " + pad(best), 38, 1);
+      if (blinkOn()) centerText("PRESS 5 TO PLAY", 54, 1);
+    }
+    else {
+      drawText(pad(score), 2, 2, 1);
+      var hi = "HI " + pad(best);
+      drawText(hi, W - 2 - textWidth(hi, 1), 2, 1);
+      drawBorder();
+      drawFood();
+      var visible = state !== "dying" || Math.floor(dyingTime / 150) % 2 === 0;
+      if (visible) drawSnake();
+      if (state === "pause") box("PAUSED");
+    }
+
+    if (toastTime > 0) box(toast);
+  }
+
+  // ===================================================
+  //  6. Main loop
+  // ===================================================
+  var last = performance.now(), acc = 0;
+  function frame(now) {
+    var dt = Math.min(now - last, 250);
+    last = now;
+    clock += dt;
+    if (toastTime > 0) toastTime -= dt;
+
+    if (state === "play") {
+      acc += dt;
+      while (acc >= tickMs && state === "play") { acc -= tickMs; step(); }
+    } else if (state === "dying") {
+      dyingTime += dt;
+      if (dyingTime > 1300) state = "over";
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ===================================================
+  //  7. Controls
+  // ===================================================
+  var KEYS = {
+    "arrowup": "up", "w": "up", "2": "up",
+    "arrowdown": "down", "s": "down", "8": "down",
+    "arrowleft": "left", "a": "left", "4": "left",
+    "arrowright": "right", "d": "right", "6": "right",
+    "5": "ok", " ": "ok", "enter": "ok",
+    "#": "mute", "m": "mute",
+    "escape": "hangup"
+  };
+  var keypad = document.getElementById("keypad");
+
+  document.addEventListener("keydown", function (e) {
+    // a focused keypad button already handles Enter and space by itself
+    if (e.target.closest && e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
+    var action = KEYS[e.key.toLowerCase()];
+    if (!action) return;
+    e.preventDefault();
+    press(action);
+    var btn = document.querySelector('[data-act="' + action + '"]');
+    if (btn) { btn.classList.add("pressed"); setTimeout(function () { btn.classList.remove("pressed"); }, 90); }
+  });
+
+  keypad.addEventListener("pointerdown", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    e.preventDefault();
+    press(btn.dataset.act);
+  });
+  // keyboard users who tab to a button and press Enter or space
+  keypad.addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (btn && e.detail === 0) press(btn.dataset.act);
+  });
+
+  var callrow = document.getElementById("callrow");
+  callrow.addEventListener("pointerdown", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;   // the answer key is a normal link, let it open
+    e.preventDefault();
+    press(btn.dataset.act);
+  });
+  callrow.addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (btn && e.detail === 0) press(btn.dataset.act);
+  });
+  // answering a call: the charm flashes like an incoming call
+  document.getElementById("answer").addEventListener("click", function () {
+    partyCharm(1500);
+    beep(1320, 0.08); beep(1320, 0.08, 0.16);
+  });
+
+  // pause automatically if you switch to another window
+  window.addEventListener("blur", function () { if (state === "play") state = "pause"; });
+})();
+</script>
+</body>
+</html>
