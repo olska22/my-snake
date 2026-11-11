@@ -8,7 +8,7 @@
 var GAME_TITLE = "SNAKE";
 
 // How fast the snake moves. 1 = sleepy, 10 = panic.
-var SNAKE_SPEED = 5;
+var SNAKE_SPEED = 9;
 
 // How long the snake is at the start. Anything from 2 to 20.
 var START_LENGTH = 4;
